@@ -1,0 +1,38 @@
+{
+    "excel_file": "data.xlsx",
+    "refresh_interval": 2,
+    "serial": {
+        "port": "COM3",
+        "baudrate": 9600,
+        "parity": "N",
+        "stopbits": 1,
+        "bytesize": 8,
+        "slave_id": 1
+    },
+    "register_map": [
+        {
+            "excel_cell": "A1",
+            "register": 40001,
+            "type": "U16",
+            "description": "System Status"
+        },
+        {
+            "excel_cell": "A2",
+            "register": 40002,
+            "type": "S16",
+            "description": "Temperature (Integer)"
+        },
+        {
+            "excel_cell": "A3",
+            "register": 40003,
+            "type": "U32",
+            "description": "Production Count"
+        },
+        {
+            "excel_cell": "A4",
+            "register": 40005,
+            "type": "FLOAT",
+            "description": "Pressure (Float)"
+        }
+    ]
+}
