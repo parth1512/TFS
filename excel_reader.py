@@ -1,8 +1,9 @@
 import time
 import shutil
 import os
-import openpyxl
+import pandas as pd
 import threading
+import re
 from logger import logger
 from config_loader import config_loader
 from register_manager import register_manager
@@ -27,14 +28,42 @@ class ExcelReader:
             self.thread.join(timeout=1.0)
         logger.info("Excel polling stopped.")
 
+    def _parse_cell_ref(self, cell_ref):
+        """
+        Parses a cell reference like 'F49' into (row_index, col_index).
+        Returns (None, None) if invalid.
+        Uses 0-based indexing for returned values.
+        """
+        if not cell_ref:
+            return None, None
+            
+        match = re.match(r"([A-Z]+)([0-9]+)", cell_ref.upper())
+        if not match:
+            return None, None
+            
+        col_str, row_str = match.groups()
+        
+        # Convert row string to 0-based index
+        # Excel rows start at 1. Pandas with header=None starts at 0.
+        # So '1' -> 0.
+        try:
+            row_idx = int(row_str) - 1
+        except ValueError:
+            return None, None
+            
+        # Convert column string to 0-based index
+        # A=0, B=1, ... Z=25, AA=26
+        col_idx = 0
+        for char in col_str:
+            col_idx = col_idx * 26 + (ord(char) - ord('A') + 1)
+        col_idx -= 1
+        
+        return row_idx, col_idx
+
     def _poll_loop(self):
         while self.running:
             try:
-                config = config_loader.load_config() # Reload config? Or just use cached? Let's use cached primarily but handle updates if implemented. 
-                # For simplicity, access global config object, assuming it's static for now or updated via GUI restart.
-                # Actually, main loop might re-read config on restart.
-                # Let's just use the current config from loader.
-                
+                config = config_loader.load_config()
                 file_path = config.get("excel_file", "data.xlsx")
                 interval = config.get("refresh_interval", 1)
                 
@@ -44,18 +73,20 @@ class ExcelReader:
                     continue
 
                 # Handle file locking: Copy to temp file
-                temp_file = "temp_read.xlsx"
+                # Use a temp extension that matches original to help engines guess format if needed
+                name, ext = os.path.splitext(file_path)
+                temp_file = f"temp_read{ext}"
+                
                 try:
                     shutil.copy2(file_path, temp_file)
                 except Exception as e:
                     logger.warning(f"Could not copy Excel file (might be locked/writing): {e}")
-                    # If copy fails, we might skip this cycle or try reading original (which might fail too)
                     time.sleep(interval)
                     continue
 
                 try:
-                    wb = openpyxl.load_workbook(temp_file, data_only=True)
-                    ws = wb.active
+                    # Read using pandas, no header assumed to match absolute cell references
+                    df = pd.read_excel(temp_file, header=None)
                     
                     reg_map = config.get("register_map", [])
                     
@@ -65,16 +96,26 @@ class ExcelReader:
                         dtype = mapping.get("type", "U16")
                         
                         if cell_ref and reg_addr:
-                            try:
-                                cell_val = ws[cell_ref].value
-                                if cell_val is not None:
-                                    register_manager.update_register(reg_addr, cell_val, dtype)
-                                else:
-                                    logger.debug(f"Cell {cell_ref} is empty.")
-                            except Exception as e:
-                                logger.error(f"Error reading cell {cell_ref}: {e}")
+                            row_idx, col_idx = self._parse_cell_ref(cell_ref)
+                            
+                            if row_idx is not None and col_idx is not None:
+                                try:
+                                    # check bounds
+                                    if row_idx < len(df) and col_idx < df.shape[1]:
+                                        cell_val = df.iloc[row_idx, col_idx]
+                                        
+                                        # Handle NaN/None
+                                        if pd.isna(cell_val):
+                                            logger.debug(f"Cell {cell_ref} is empty.")
+                                        else:
+                                            register_manager.update_register(reg_addr, cell_val, dtype)
+                                    else:
+                                        logger.warning(f"Cell {cell_ref} is out of bounds.")
+                                except Exception as e:
+                                    logger.error(f"Error reading cell {cell_ref}: {e}")
+                            else:
+                                logger.warning(f"Invalid cell reference: {cell_ref}")
                                 
-                    wb.close()
                 except Exception as e:
                     logger.error(f"Error reading Excel workbook: {e}")
                 finally:

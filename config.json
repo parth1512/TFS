@@ -1,5 +1,5 @@
 {
-    "excel_file": "data.xlsx",
+    "excel_file": "14 ppm hrs.xls",
     "refresh_interval": 2,
     "serial": {
         "port": "COM3",
@@ -11,28 +11,10 @@
     },
     "register_map": [
         {
-            "excel_cell": "A1",
-            "register": 40001,
-            "type": "U16",
-            "description": "System Status"
-        },
-        {
-            "excel_cell": "A2",
-            "register": 40002,
-            "type": "S16",
-            "description": "Temperature (Integer)"
-        },
-        {
-            "excel_cell": "A3",
-            "register": 40003,
-            "type": "U32",
-            "description": "Production Count"
-        },
-        {
-            "excel_cell": "A4",
+            "excel_cell": "F51",
             "register": 40005,
             "type": "FLOAT",
-            "description": "Pressure (Float)"
+            "description": "H2S Concentration"
         }
     ]
 }

@@ -1,4 +1,6 @@
 pymodbus>=3.6.0
 pyserial>=3.5
 openpyxl>=3.1.0
+pandas>=2.0.0
+xlrd>=2.0.1
 pyinstaller
